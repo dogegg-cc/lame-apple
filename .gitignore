@@ -1,0 +1,7 @@
+.DS_Store
+.build/
+.swiftpm/
+Artifacts/
+Release/
+__pycache__/
+*.pyc

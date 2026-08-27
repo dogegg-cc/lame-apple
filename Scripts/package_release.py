@@ -47,15 +47,15 @@ def main():
     shutil.copy2(build_info, destination / build_info.name)
     shutil.copy2(ROOT / "upstream.json", destination / "upstream.json")
     shutil.copytree(ROOT / "Licenses", destination / "Licenses", dirs_exist_ok=True)
-    shutil.copy2(ROOT / "README.md", destination / "README.md")
-    shutil.copy2(ROOT / "VALIDATION.md", destination / "VALIDATION.md")
+    for name in ("README.md", "CHANGELOG.md", "CONTRIBUTING.md", "VALIDATION.md"):
+        shutil.copy2(ROOT / name, destination / name)
     with tempfile.TemporaryDirectory(prefix="source-", dir=destination) as temporary:
         snapshot = Path(temporary) / "lame-apple"
         snapshot.mkdir()
         for name in ("Scripts", "Tests", "Vendor", "Licenses"):
             shutil.copytree(ROOT / name, snapshot / name,
                             ignore=shutil.ignore_patterns(".build", ".swiftpm", "__pycache__", "*.pyc"))
-        for name in ("Package.swift", "upstream.json", "README.md", "VALIDATION.md", "AGENTS.md", "LICENSE", ".swiftformat", ".gitignore"):
+        for name in ("Package.swift", "upstream.json", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "VALIDATION.md", "AGENTS.md", "LICENSE", ".swiftformat", ".gitignore"):
             shutil.copy2(ROOT / name, snapshot / name)
         subprocess.run(["/usr/bin/ditto", "-c", "-k", "--keepParent", str(snapshot),
                         str(destination / f'lame-apple-{config["packageVersion"]}-source.zip')], check=True)

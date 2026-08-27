@@ -21,6 +21,8 @@ SwiftFormat 是开发检查工具，不是构建依赖。修改 Swift 文件后�
 
 构建日志保留在 `.build/lame`；验证结果保留在 `.build/verification`。脚本仅关闭本次自行启动的模拟器，不关闭原先已运行的开发会话。
 
+`build.py` 生成 `Artifacts/Package.swift`，本地消费者固定依赖该目录。根清单仅用于远端分发，不能为了本地测试改回 `path: "Artifacts/LAME.xcframework"`。
+
 `Artifacts/build-info.json` 记录上游配置、编译器、SDK 和二进制校验值。相同输入可按脚本重新构建，但目前不保证跨机器的二进制与 ZIP 逐字节一致。验证记录只对实际测试的产物和环境负责。
 
 ## 版本管理
@@ -48,22 +50,31 @@ SwiftFormat 是开发检查工具，不是构建依赖。修改 Swift 文件后�
 4. 推送提交和 tag，核对远端 tag 指向的提交。
 5. README 保留准确的源码构建说明，不将源码版本写成可直接下载的二进制包。
 
-## 准备二进制 Release
+## 发布二进制版本
 
 ```sh
-python3 Scripts/package_release.py --repository dogegg-cc/lame-apple
+python3 Scripts/package_release.py --repository dogegg-cc/lame-apple --update-manifest
 ```
 
-脚本只生成本地材料，不上传、不创建 tag，也不修改根目录 `Package.swift`。输出位于 `Release/<packageVersion>`：
+脚本不上传、不创建 tag。`--update-manifest` 显式更新根目录 `Package.swift`，将当前 ZIP 的下载地址与 checksum 纳入发布提交；省略该参数则仅生成材料。输出位于 `Release/<packageVersion>`：
 
 - `LAME.xcframework.zip` 与 SHA-256。
 - 完整官方源码归档及包含构建/验证脚本的工程源码 ZIP。
 - 许可证、构建信息、版本配置、README、CHANGELOG 与维护/验证文档。
 - 指向相应 GitHub Release 资产的远端 `Package.swift`。
 
-发布前必须核查源码和二进制对应关系、应用嵌入签名、真机运行及许可证分发要求。远端二进制清单应随发布提交进入根目录，同时为本地开发保留明确的本地产物验证入口；不能让维护脚本转而测试旧版远端二进制。
+发布前核查源码和二进制对应关系及许可证材料，完成两个平台编译和模拟器回读；发布说明必须如实列出真机运行、应用嵌入签名及其他未覆盖项。应用分发前仍需单独完成对应的集成与分发验证。
 
-为新的二进制版本安排 draft Release、提交、tag 与资产上传，确认 `releases/download/<version>/LAME.xcframework.zip` 可访问且 SHA-256 与清单一致，再完成干净环境下的远端 SPM 下载和两个平台消费验证。不要把重建产生的新 checksum 覆盖进已发布版本；必须提升版本。
+1. 提升 `packageVersion`，重新构建、验证、打包，更新 CHANGELOG 和验证范围。
+2. 检查根清单使用 `url` 和当前 ZIP 的 SHA-256，源码归档中的清单与提交一致。
+3. 将发布提交合入 `main` 并创建同名 tag，准备对应 Release。上传 `LAME.xcframework.zip`、checksum、完整官方源码、工程源码 ZIP、许可证、构建信息与文档。
+4. 发布后确认下载 URL 与 checksum，再执行以下命令。脚本不使用本地 Artifacts 或已有包缓存：
+
+```sh
+python3 Scripts/verify_remote.py --version 0.1.1
+```
+
+将 `--version` 替换为本次版本。只有远端下载和两个平台的消费构建实际通过后，才报告 SPM 发布验证完成。失败时保留日志并修复新版本，不移动 tag 或覆盖已发布资产。
 
 ## 报告问题
 

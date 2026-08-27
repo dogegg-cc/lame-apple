@@ -16,9 +16,12 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", help="Optional GitHub OWNER/REPO; generates the remote Package.swift")
+    parser.add_argument("--update-manifest", action="store_true", help="Also replace the root Package.swift with the generated remote manifest")
     args = parser.parse_args()
     if args.repository and not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repository):
         parser.error("--repository must be OWNER/REPO")
+    if args.update_manifest and not args.repository:
+        parser.error("--update-manifest requires --repository")
     config = json.loads((ROOT / "upstream.json").read_text())
     build_info = ROOT / "Artifacts/build-info.json"
     record = json.loads(build_info.read_text())
@@ -42,6 +45,23 @@ def main():
                     str(ROOT / "Artifacts/LAME.xcframework"), str(archive)], check=True)
     checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
     (destination / "LAME.xcframework.zip.sha256").write_text(f"{checksum}  {archive.name}\n")
+    manifest = destination / "Package.swift"
+    if args.repository:
+        url = f'https://github.com/{args.repository}/releases/download/{config["packageVersion"]}/{archive.name}'
+        manifest.write_text(
+            '// swift-tools-version: 5.9\nimport PackageDescription\n\n'
+            'let package = Package(\n    name: "LAMEApple",\n'
+            f'    platforms: [.iOS("{config["minimumIOSVersion"]}")],\n'
+            '    products: [.library(name: "LAME", targets: ["LAME"])],\n'
+            '    targets: [\n        .binaryTarget(\n            name: "LAME",\n'
+            f'            url: "{url}",\n            checksum: "{checksum}"\n'
+            '        )\n    ]\n)\n'
+        )
+        if args.update_manifest:
+            # 显式更新后再归档源码，使发布提交、源码包和二进制清单一致。
+            shutil.copy2(manifest, ROOT / "Package.swift")
+    elif manifest.exists():
+        manifest.unlink()
     # 源码归档与许可证跟随二进制分发，不让下载者依赖一个可能失效的外部链接。
     shutil.copy2(ROOT / config["archive"], destination / Path(config["archive"]).name)
     shutil.copy2(build_info, destination / build_info.name)
@@ -59,20 +79,6 @@ def main():
             shutil.copy2(ROOT / name, snapshot / name)
         subprocess.run(["/usr/bin/ditto", "-c", "-k", "--keepParent", str(snapshot),
                         str(destination / f'lame-apple-{config["packageVersion"]}-source.zip')], check=True)
-    manifest = destination / "Package.swift"
-    if args.repository:
-        url = f'https://github.com/{args.repository}/releases/download/{config["packageVersion"]}/{archive.name}'
-        manifest.write_text(
-            '// swift-tools-version: 5.9\nimport PackageDescription\n\n'
-            'let package = Package(\n    name: "LAMEApple",\n    platforms: [.iOS(.v17)],\n'
-            '    products: [.library(name: "LAME", targets: ["LAME"])],\n'
-            '    targets: [\n        .binaryTarget(\n            name: "LAME",\n'
-            f'            url: "{url}",\n            checksum: "{checksum}"\n'
-            '        )\n    ]\n)\n'
-        )
-    elif manifest.exists():
-        # 未提供远端仓库时，不保留上次运行生成的旧 URL。
-        manifest.unlink()
     print(f"Prepared {destination}")
     print(f"SHA-256: {checksum}")
     print("No upload, tag or remote repository has been created.")

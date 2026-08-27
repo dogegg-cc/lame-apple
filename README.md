@@ -1,24 +1,42 @@
 # lame-apple
 
-面向 iOS / iPadOS 的独立 LAME MP3 编码库。将官方 LAME 源码构建为动态 XCFramework，通过本地 Swift Package Manager 包接入，直接提供 `import LAME` 和官方 C API。
+面向 iOS / iPadOS 的独立 LAME MP3 编码库。将官方 LAME 源码构建为动态 XCFramework，通过 Swift Package Manager 接入，直接提供 `import LAME` 和官方 C API。
 
 ## 支持范围
 
 | 项目 | 支持 |
 | --- | --- |
-| 库版本 | 0.1.0 |
+| 库版本 | 0.1.1 |
 | 上游版本 | LAME 4.0 |
 | 系统 | iOS / iPadOS 17.0+ |
 | 真机架构 | arm64 |
 | 模拟器架构 | arm64（Apple Silicon） |
-| 分发形式 | 动态 XCFramework，Swift Package Manager 本地包 |
+| 分发形式 | 动态 XCFramework，Swift Package Manager 二进制包 |
 | 编码 | PCM → MP3 |
 
 不包含音频解码、媒体文件读取或剪辑功能，不依赖 FFmpeg。不支持 Intel 模拟器、macOS、watchOS、tvOS 或 visionOS。
 
 ## 安装
 
-`0.1.0` 为源码构建版本。仓库不提交生成的 XCFramework，当前不能直接以远端仓库 URL 添加 SPM 依赖。
+### Swift Package Manager
+
+在 Xcode 的 Package Dependencies 中添加 `https://github.com/dogegg-cc/lame-apple.git`，选择 **0.1.1 或更高版本**，为应用 Target 添加 `LAME` 产品。
+
+也可以在 `Package.swift` 中声明：
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/dogegg-cc/lame-apple.git", from: "0.1.1")
+]
+// 在消费 Target 的 dependencies 中添加：
+// .product(name: "LAME", package: "lame-apple")
+```
+
+SPM 根据版本清单下载 [Release](https://github.com/dogegg-cc/lame-apple/releases) 中的 XCFramework，并校验 SHA-256。使用预编译版本不需要 Python、`make` 或 `pkg-config`。
+
+`0.1.0` 仅支持本地源码构建，不能直接作为远端 SPM 依赖。遇到 `does not contain a binary artifact` 时，请将版本要求调整为 `0.1.1` 或更高版本，并在 Xcode 中更新包版本。
+
+## 从源码构建
 
 ### 构建要求
 
@@ -26,15 +44,17 @@
 - 完整 Xcode 与 iOS SDK，使用 `xcode-select` 选择工具链。
 - Python 3.12+、`make`、`pkg-config`。
 
-### 从源码构建
+### 构建命令
 
 ```sh
-git clone --branch 0.1.0 https://github.com/dogegg-cc/lame-apple.git
+git clone --branch 0.1.1 https://github.com/dogegg-cc/lame-apple.git
 cd lame-apple
 python3 Scripts/build.py
 ```
 
-构建产物位于 `Artifacts/LAME.xcframework`。在 Xcode 中将包含 `Package.swift` 的仓库根目录添加为 **Local Package**，为应用 Target 选择 `LAME` 产品。最低 Swift 工具版本为 5.9。
+构建产物位于 `Artifacts/LAME.xcframework`，并生成 `Artifacts/Package.swift`。在 Xcode 中将 **`Artifacts` 目录**添加为 Local Package，为应用 Target 选择 `LAME` 产品。最低 Swift 工具版本为 5.9。
+
+根目录 `Package.swift` 始终用于远端分发；本地开发使用 `Artifacts` 包，避免把已发布二进制误当成本次源码构建结果。
 
 脚本读取仓库内锁定的官方源码归档并校验 SHA-256；真机和模拟器分别编译，不在线下载依赖。构建使用 ad-hoc 签名，应用分发时仍需正常的嵌入与签名流程。
 
@@ -69,6 +89,12 @@ python3 Scripts/verify.py --device SIMULATOR_UDID
 ```
 
 验证覆盖两个平台的 Swift 6 编译/链接、本地 SPM Release 构建，以及 44.1/48 kHz、单/双声道、短片段/非整帧输入的 8 组 MP3 编码回读。
+
+维护者发布后还需执行远端验证，它使用隔离的源码检出、包缓存和 DerivedData：
+
+```sh
+python3 Scripts/verify_remote.py --version 0.1.1
+```
 
 已执行的环境、结果和覆盖边界见 [VALIDATION.md](VALIDATION.md)。模拟器验证不代替真机或应用分发验证。
 

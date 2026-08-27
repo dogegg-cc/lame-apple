@@ -37,6 +37,8 @@ def main():
         raise RuntimeError("Expected exactly two arm64 iOS slices")
     work = ROOT / ".build/verification"
     work.mkdir(parents=True, exist_ok=True)
+    # 本次失败不能沿用先前成功的报告作为发布依据。
+    (work / "verification.json").unlink(missing_ok=True)
     simulator_binary = None
     for item in slices:
         simulator = item.get("SupportedPlatformVariant") == "simulator"

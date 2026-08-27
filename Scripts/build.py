@@ -167,6 +167,14 @@ def main():
     record = {"upstream": config, "xcode": output(["xcodebuild", "-version"]),
               "compiler": output(["xcrun", "clang", "--version"]), "slices": records}
     (artifacts / "build-info.json").write_text(json.dumps(record, indent=2) + "\n")
+    # 本地测试只消费本次构建；根清单留给远端分发，不随开发构建改写。
+    (artifacts / "Package.swift").write_text(
+        '// swift-tools-version: 5.9\nimport PackageDescription\n\n'
+        'let package = Package(\n    name: "LAMEApple",\n'
+        f'    platforms: [.iOS("{config["minimumIOSVersion"]}")],\n'
+        '    products: [.library(name: "LAME", targets: ["LAME"])],\n'
+        '    targets: [.binaryTarget(name: "LAME", path: "LAME.xcframework")]\n)\n'
+    )
     print(f"Built {target}")
 
 
